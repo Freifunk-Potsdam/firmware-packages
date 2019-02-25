@@ -36,6 +36,7 @@ define Package/freifunk-potsdam-collect/install
 	$(INSTALL_BIN) ./init.d/ffp-collect $(1)/etc/init.d/ffp-collect
 	$(INSTALL_DIR) $(1)/tmp
 	$(INSTALL_BIN) ./files/postinst.sh $(1)/tmp/freifunk-potsdam-collect_postinst.sh
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(CP) ./uci-defaults/* $(1)/etc/uci-defaults
 endef
 
