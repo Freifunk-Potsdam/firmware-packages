@@ -12,7 +12,7 @@ PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_VERSION:=235e111fb8fa02c4687af7f695e21204d9d28fe6
 PKG_MIRROR_HASH:=88c2f854270213f973f787f49e59adcfcafd6cbd9a4b5f49ab8f62ea73583a82
 
-#PKG_BUILD_DEPENDS:=python-cffi/host
+PKG_BUILD_DEPENDS:=python-cffi/host
 
 include $(INCLUDE_DIR)/package.mk
 $(call include_mk, python-package.mk)
