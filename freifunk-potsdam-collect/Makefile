@@ -42,7 +42,9 @@ endef
 
 define Package/freifunk-potsdam-collect/postinst
 #!/bin/sh
-$${IPKG_INSTROOT}/tmp/freifunk-potsdam-collect_postinst.sh
+if [ -f /lib/functions.sh ] ; then
+	$${IPKG_INSTROOT}/tmp/freifunk-potsdam-collect_postinst.sh
+fi
 endef
 
 $(eval $(call BuildPackage,freifunk-potsdam-collect))
