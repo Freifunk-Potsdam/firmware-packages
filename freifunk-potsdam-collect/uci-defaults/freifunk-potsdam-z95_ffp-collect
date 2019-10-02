@@ -1,0 +1,18 @@
+#!/bin/sh
+
+. /lib/functions/system.sh
+
+touch /etc/config/ffp
+
+uci set ffp.status=config
+uci set ffp.status.enable='1'
+uci set ffp.status.host='monitor.freifunk-potsdam.de'
+uci set ffp.status.path='/fff'
+uci set ffp.status.upgradeurl='http://monitor.freifunk-potsdam.de/ffp-collect'
+uci set ffp.status.exclude_devices=' '
+uci set ffp.status.autoupgrade='0'
+uci set ffp.status.sendcontact='0'
+uci commit ffp
+
+/etc/init.d/ffp-collect stop
+/etc/init.d/ffp-collect start
