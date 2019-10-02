@@ -1,0 +1,315 @@
+#!/bin/sh /etc/rc.common
+
+EXCLUDE_DEVICES="`uci -q get ffp.status.exclude_devices`"
+ENABLED=`uci -q get ffp.status.enable`
+AUTOUPGRADE=`uci -q get ffp.status.autoupgrade`
+UPLOADHOST="`uci -q get ffp.status.host`"
+UPLOADURL="`uci -q get ffp.status.path`"
+UPGRADEURL="`uci -q get ffp.status.upgradeurl`"
+SENDCONTACT=`uci -q get ffp.status.sendcontact`
+
+COLLDIR=/tmp/collstat
+
+SCRIPTNAME='ffp-collect'
+SCRIPTPATH='/etc/init.d/' # _with_ trailing / !
+
+##### ----- do NOT edit from this line on ----- #####
+## init variables; https://wiki.openwrt.org/doc/techref/initscripts
+export LC_ALL=C
+START=99
+STOP=11
+EXTRA_COMMANDS="upload collect upgrade"
+
+## script variables
+SCRIPTVERSION='19.3'
+SCRIPT=${SCRIPTPATH}${SCRIPTNAME}
+CRONTABPATH='/var/spool/cron/crontabs/' # _with_ trailing / !
+CRONTABUSER='root'
+CRONTAB=${CRONTABPATH}${CRONTABUSER}
+
+UPGRADEMINUTE=$(awk 'BEGIN{srand();print int(rand()*60)}') # random minute for upgrade cron
+UPGRADEHOUR=$(awk 'BEGIN{srand();print int(rand()*24)}') # random hour for upgrade cron
+UPGRADEDAY='1'
+
+if [ "$ENABLED" != "1" ]; then
+    exit
+fi
+
+if [ ! -d "$COLLDIR" ]; then
+	mkdir "$COLLDIR"
+fi
+EXCLUDE_DEVICES=`echo $EXCLUDE_DEVICES | sed 's/\./_/g'`
+hostname=`uci get system.@system[0].hostname`
+time=`date +%s`
+
+xuptime() {
+	echo "<uptime>"
+	uptime
+	echo "</uptime>"
+}
+
+xifconfig() {
+	echo "<ifconfig>"
+	for dev in `ls /sys/class/net/` ; do
+		ndev=`echo $dev | sed 's/\./_/g'`
+		if [ "`echo $EXCLUDE_DEVICES | grep -w $ndev`" = "" ] ; then
+			echo "<$ndev>"
+			ifconfig $dev
+			echo "</$ndev>"
+		fi
+	done
+	echo "</ifconfig>"
+}
+
+xdhcp() {
+	echo "<dhcp_leases>"
+	cut -d' ' -f1,3 /var/dhcp.leases
+	echo "</dhcp_leases>"
+}
+
+xstate() {
+	for f in $COLLDIR/*.state ; do
+		if [ -e $f ]; then
+			n=`basename $f .state`
+			echo "<$n>"
+			cat $f
+			echo "</$n>"
+		fi
+	done
+}
+
+xlinks() {
+	echo "<links>"
+	echo /links | nc 127.0.0.1 9090 | grep -A 9999 {
+	echo "</links>"
+}
+
+xtop() {
+	echo "<top>"
+	sleep 3
+	top -b -n1 | head -n2
+	echo "</top>"
+}
+
+xdf() {
+	echo "<df>"
+	df
+	echo "</df>"
+}
+
+xconn() {
+	echo "<conn>"
+	cut -c12-20 /proc/net/nf_conntrack | sort | uniq -c
+	echo "</conn>"
+}
+
+xiwinfo() {
+	echo "<iwinfo>"
+	iwinfo | grep "^[a-z]" | while read line ; do
+		dev=`echo $line | cut -d' ' -f1`
+		ndev=`echo $dev | sed 's/\./_/g'`
+		if [ "`echo $EXCLUDE_DEVICES | grep -w $ndev`" = "" ] ; then
+			echo "<$ndev>"
+			iwinfo $dev info
+			cnt=`iwinfo $dev assoclist | grep -E "^[0-9A-F]{2}:" | wc -l`
+			echo -e "\tAssoc: $cnt"
+			echo "</$ndev>"
+		fi
+	done
+	echo "</iwinfo>"
+}
+
+xbrctl() {
+	echo "<brctl>"
+	brctl show
+	echo "</brctl>"
+}
+
+xroutes() {
+	echo "<tunnel>"
+	ip tunnel show
+	echo "</tunnel>"
+	echo "<routes>"
+	ip route show table main | grep default
+	ip route show table ffuplink 2> /dev/null | grep default
+	ip route show table olsr-default | grep default
+	ip route show table olsr-tunnel | grep default
+	echo "</routes>"
+}
+
+xoptions() {
+	echo "<options>"
+	grep 'latitude' /etc/config/system
+	grep 'longitude' /etc/config/system
+	grep 'location' /etc/config/system
+	if [ "$SENDCONTACT" == "1" ]; then
+		grep 'mail' /etc/config/freifunk
+		grep 'note' /etc/config/freifunk
+		grep 'phone' /etc/config/freifunk
+	fi
+	echo "</options>"
+}
+
+xsystem() {
+	echo "<system>"
+	echo -n "firmware : "
+	cat /etc/openwrt_version
+	grep 'machine' /proc/cpuinfo
+	grep 'system type' /proc/cpuinfo
+	echo "</system>"
+}
+
+echocrlf() {
+	echo -n "$1"
+	echo -e "\r"
+}
+
+fupload() {
+	if [ -f "$1" ]; then
+		len=`ls -al "$1" | sed 's/ \+/\t/g' | cut -f5`
+		BOUNDARY="----BOUNDARY"
+		(
+			line0="--$BOUNDARY"
+			line1="Content-Disposition: form-data; name=\"f\"; filename=\"`basename $1`\""
+			line2="Content-Type: application/octet-stream"
+			line3="--$BOUNDARY--"
+
+			len=$(( $len + `echo -n $line0 | wc -c` + 2 ))
+			len=$(( $len + `echo -n $line1 | wc -c` + 2 ))
+			len=$(( $len + `echo -n $line2 | wc -c` + 2 ))
+			len=$(( $len + `echo -n $line3 | wc -c` + 2 ))
+
+			len=$(( $len + 2 + 2 ))
+		
+			echocrlf "POST $3 HTTP/1.1"
+			echocrlf "Host: $2"
+			echocrlf "Connection: close"
+			echocrlf "Content-Length: $len"
+			echocrlf "Content-Type: multipart/form-data; boundary=$BOUNDARY"
+			echocrlf
+			echocrlf "$line0"
+			echocrlf "$line1"
+			echocrlf "$line2"
+			echocrlf
+			cat "$1"
+			echocrlf
+			echocrlf "$line3"
+		) | nc $2 80
+		p=$!
+		sleep 10 && kill $p 2> /dev/null
+	fi
+}
+
+plog() {
+	MSG="$*"
+	echo ${MSG}
+	logger -t ${SCRIPTNAME} ${MSG}
+}
+
+start() {
+	# INFO: enable init script AND add update cron job
+	enable
+	sed -i "/`echo ${SCRIPTNAME} | sed 's!/!\\\\/!g'`/d" ${CRONTAB}
+
+	CRONJOB="*/10 * * * * ${SCRIPT} upload # FFP-StatusUpload (v${SCRIPTVERSION})"
+	echo "${CRONJOB}" >> ${CRONTAB}
+	CRONJOB="* * * * * ${SCRIPT} collect # FFP-StatusCollection (v${SCRIPTVERSION})"
+	echo "${CRONJOB}" >> ${CRONTAB}
+	CRONJOB="${UPGRADEMINUTE} ${UPGRADEHOUR} ${UPGRADEDAY} * * ${SCRIPT} upgrade --auto # FFP-StatusAutoUpgrade (v${SCRIPTVERSION})"
+	echo "${CRONJOB}" >> ${CRONTAB}
+	sleep 1
+	echo "${CRONTABUSER}" > ${CRONTABPATH}cron.update # reload crontab
+	plog "cron jobs for user ${CRONTABUSER} added"
+}
+
+stop() {
+	disable
+	sed -i "/`echo ${SCRIPTNAME} | sed 's!/!\\\\/!g'`/d" ${CRONTAB}
+	sleep 1
+	echo "${CRONTABUSER}" > ${CRONTABPATH}cron.update # reload crontab
+	plog "cron jobs for user ${CRONTABUSER} removed"
+	upload --now
+}
+
+collect() {
+	m=`date +%M`
+	f=$COLLDIR/$time.cff
+	echo "<ffstat host='$hostname' time='$time' ver='$SCRIPTVERSION'>" > $f
+	(
+		xtop
+		xuptime
+		xstate
+		xdhcp
+		xlinks
+		xconn
+		xroutes
+		if [ $(( $m % 5 )) -eq 0 ]; then
+			xsystem
+			xoptions
+			xdf
+			xbrctl
+			xiwinfo
+			xifconfig
+		fi
+	) >> $f
+	echo "</ffstat>" >> $f
+	mv $f $f.xml
+	rm -r $COLLDIR/*.cff 2> /dev/null
+}
+
+upload_rm() {
+	if [ -f "$1" ]; then
+		plog "uploading $1..."
+		res=`fupload $1 $UPLOADHOST $UPLOADURL | tail -n1`
+		if [ "$res" = "success" ]; then
+			rm $1
+		fi
+	fi
+}
+
+upload_rm_or_gzip() {
+	if [ -f "$1" ]; then
+		plog "uploading $1..."
+		res=`fupload $1 $UPLOADHOST $UPLOADURL | tail -n1`
+		if [ "$res" = "success" ]; then
+			rm $1
+		else
+			plog "uploading $1 failed, zipping..."
+			gzip $1 2> /dev/null
+		fi
+	fi
+}
+
+upload() {
+	if [ "$1" != "--now" ]; then
+		# wait a random time
+		WAIT=$(awk 'BEGIN{srand();print int(rand()*300)}')
+		plog "sleeping $WAIT seconds before upload..."
+		sleep $WAIT
+	fi
+	for f in $COLLDIR/*.cff.xml.gz; do
+		upload_rm $f &
+		sleep 1
+	done
+	for f in $COLLDIR/*.cff.xml; do
+		upload_rm_or_gzip $f &
+		sleep 1
+	done
+	wait
+	filled=`df $COLLDIR | tail -n1 | sed -E 's/^.*([0-9]+)%.*$/\1/g'`
+	while [ $filled -gt 50 ]; do
+		f=`ls -lrc $COLLDIR | sed 's/ \+/\t/g' | cut -f9 | head -n1`
+		if [ "$f" != "" ]; then
+			rm "$COLLDIR/$f"
+		else
+			break
+		fi
+	done
+}
+
+upgrade() {
+	if [ "$AUTOUPGRADE" != "1" -a "$1" == "--auto" ]; then
+		echo "AutoUpgrade disabled, exiting."
+		exit
+	fi
+}
