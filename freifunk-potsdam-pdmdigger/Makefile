@@ -1,9 +1,10 @@
 #
-# Copyright (C) 2016 Freifunk Berlin
+# Copyright (C) 2019 Freifunk Potsdam
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
 #
+# this is mainly a fork of the freifunk-berlin-bbbdigger plugin with some config changes
 
 include $(TOPDIR)/rules.mk
 
