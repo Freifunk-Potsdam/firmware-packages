@@ -3,8 +3,8 @@
 # As part of the install, we don't want to smash an already set up config
 # but at the same time update it if necessary.  The unique attributes are:
 #
-# network.bbbdigger_dev.macaddr
-# tunneldigger.bbbdigger.uuid
+# network.pdmdigger_dev.macaddr
+# tunneldigger.pdmdigger.uuid
 #
 # All other config sections are overwritten with current settings
 
@@ -18,8 +18,8 @@ BIND=wan
 # See the website https://www.itwissen.info/MAC-Adresse-MAC-address.html
 MAC=$(uci -q get network.${IFACE}_dev.macaddr)
 if [ $? -eq 1 ]; then
-  # start with b6 for Berliner 6ackbone
-  MAC="b6"
+  # start with d6 for madstoP Backbone
+  MAC="d6"
   for byte in 2 3 4 5 6; do
     MAC=$MAC`dd if=/dev/urandom bs=1 count=1 2> /dev/null | hexdump -e '1/1 ":%02x"'`
   done
@@ -65,7 +65,7 @@ SECTION=$(uci show olsrd | grep ${IFACE} | cut -d . -f 1-2)
 uci add olsrd Interface
 uci set olsrd.@Interface[-1].ignore=0
 uci set olsrd.@Interface[-1].interface=$IFACE
-uci set olsrd.@Interface[-1].Mode=ether
+uci set olsrd.@Interface[-1].Mode=mesh
 
 #uci changes
 
