@@ -1,8 +1,10 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=freifunk-potsdam-freifunk-defaults
+PKG_SOURCE_DATE:=2019-05-25
+PKG_VERSION:=1
 
-include ../../freifunk-potsdam-generic.mk
+include $(INCLUDE_DIR)/package.mk
 
 define Package/freifunk-potsdam-freifunk-defaults
   SECTION:=freifunk-potsdam

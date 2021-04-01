@@ -1,15 +1,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=freifunk-potsdam-system-defaults
+PKG_SOURCE_DATE:=2020-03-01
+PKG_VERSION:=1
 
-include ../../freifunk-potsdam-generic.mk
-
+include $(INCLUDE_DIR)/package.mk
+ 
 define Package/freifunk-potsdam-system-defaults
   SECTION:=freifunk-potsdam
   CATEGORY:=freifunk-potsdam
   TITLE:=Freifunk Potsdam system default configuration
   URL:=http://github.com/freifunk-potsdam/firmware-packages
-  DEPENDS+= +freifunk-berlin-lib-guard
+  EXTRA_DEPENDS:=falter-berlin-lib-guard
   PKGARCH:=all
 endef
 

@@ -26,7 +26,7 @@ endef
 define Package/freifunk-potsdam-pdmdigger
   $(call Package/freifunk-potsdam-pdmdigger/default)
   TITLE:=A Tunneldigger (l2tp) based VPN connection to mesh with the Potsdam Backbone
-  DEPENDS:=+freifunk-berlin-tunneldigger
+  EXTRA_DEPENDS:=falter-berlin-tunneldigger, olsrd
 endef
 
 define Package/freifunk-potsdam-pdmdigger/description

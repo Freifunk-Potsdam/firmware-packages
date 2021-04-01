@@ -1,15 +1,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=freifunk-potsdam-olsrd-defaults
-
-include ../../freifunk-potsdam-generic.mk
+PKG_VERSION:=1
 
 define Package/freifunk-potsdam-olsrd-defaults
   SECTION:=freifunk-potsdam
   CATEGORY:=freifunk-potsdam
   TITLE:=Freifunk Potsdam olsrd default configuration
   URL:=http://github.com/freifunk-potsdam/firmware-packages
-  DEPENDS+= +olsrd +freifunk-berlin-lib-guard
+  EXTRA_DEPENDS+=olsrd, falter-berlin-lib-guard
   PKGARCH:=all
 endef
 
