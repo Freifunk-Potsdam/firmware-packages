@@ -3,6 +3,8 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=freifunk-potsdam-olsrd-defaults
 PKG_VERSION:=1
 
+include $(INCLUDE_DIR)/package.mk
+
 define Package/freifunk-potsdam-olsrd-defaults
   SECTION:=freifunk-potsdam
   CATEGORY:=freifunk-potsdam
